@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TB Notification Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f4f3f1; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e2e0db;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7873;
+  --accent:#40384b; --accent-ink:#ffffff;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --gray:#a3a19b;
+  --warn-bg:#fff4dc; --warn-ink:#7a4d00; --crit-bg:#fde7e6; --crit-ink:#9b1c1b;
+  --grid:#e8e6e1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface:#1a1a19; --surface-2:#232321; --border:#33332f;
+    --text:#ffffff; --text-2:#c3c2b7; --muted:#8f8d85;
+    --accent:#4d4459; --accent-ink:#ffffff;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --gray:#6b6a64;
+    --warn-bg:#3a2e12; --warn-ink:#f2c46b; --crit-bg:#3d1b1b; --crit-ink:#f2a3a2;
+    --grid:#2c2c29;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121211; --surface:#1a1a19; --surface-2:#232321; --border:#33332f;
+  --text:#ffffff; --text-2:#c3c2b7; --muted:#8f8d85;
+  --accent:#4d4459; --accent-ink:#ffffff;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --gray:#6b6a64;
+  --warn-bg:#3a2e12; --warn-ink:#f2c46b; --crit-bg:#3d1b1b; --crit-ink:#f2a3a2;
+  --grid:#2c2c29;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+header{background:var(--accent);color:var(--accent-ink);padding:18px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.2px}
+header .sub{font-size:12.5px;opacity:.85;margin-top:2px}
+header .hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);color:inherit;border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.18)}
+.btn.ghost{border-color:var(--border);background:var(--surface);color:var(--text)}
+.btn.ghost:hover{background:var(--surface-2)}
+main{max-width:1400px;margin:0 auto;padding:18px 16px 40px}
+.drop{border:2px dashed var(--border);border-radius:14px;background:var(--surface);padding:42px 20px;text-align:center;color:var(--text-2);cursor:pointer;transition:.15s}
+.drop.over{border-color:var(--s1);background:var(--surface-2)}
+.drop strong{color:var(--text);font-size:16px;display:block;margin-bottom:6px}
+.drop small{display:block;margin-top:10px;color:var(--muted)}
+#app{display:none}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;position:sticky;top:0;z-index:500}
+.filters label{display:flex;flex-direction:column;font-size:11.5px;color:var(--text-2);gap:3px;text-transform:uppercase;letter-spacing:.4px}
+.filters select,.filters input{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);min-width:120px;text-transform:none;letter-spacing:0}
+.filters .meta{margin-left:auto;font-size:12px;color:var(--muted);align-self:center}
+.files{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;font-size:12.5px;color:var(--text-2)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 6px 4px 12px;color:var(--text)}
+.chip small{color:var(--muted)}
+.chip button{border:0;background:var(--surface-2);color:var(--text-2);border-radius:50%;width:20px;height:20px;cursor:pointer;line-height:1;font-size:13px}
+.chip button:hover{background:var(--crit-bg);color:var(--crit-ink)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kpi .lab{font-size:12px;color:var(--text-2)}
+.kpi .val{font-size:30px;font-weight:650;line-height:1.15;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .note{font-size:12px;color:var(--muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
+.card h2{font-size:14.5px;margin:0 0 2px;font-weight:620}
+.card .desc{font-size:12px;color:var(--muted);margin:0 0 10px}
+.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}
+@media (max-width:1000px){.c8,.c7,.c6,.c5,.c4{grid-column:span 12}}
+.chartbox{position:relative;height:280px}
+.chartbox.tall{height:340px}
+#map{height:440px;border-radius:10px;border:1px solid var(--border)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;float:right;margin-top:-2px}
+.seg button{border:0;background:var(--surface);color:var(--text-2);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
+.seg button.on{background:var(--surface-2);color:var(--text);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--text-2);margin:2px 0 8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--text-2);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;background:var(--surface);cursor:pointer;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tablewrap{max-height:460px;overflow:auto}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill.ssp{background:color-mix(in srgb,var(--s1) 18%,transparent);color:var(--text)}
+.pill.ssn{background:color-mix(in srgb,var(--s2) 18%,transparent);color:var(--text)}
+.pill.ep{background:color-mix(in srgb,var(--s3) 20%,transparent);color:var(--text)}
+.pill.nr{background:var(--surface-2);color:var(--text-2)}
+.alert{border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.alert.crit{background:var(--crit-bg);color:var(--crit-ink)}
+.alert.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.alert b{font-weight:650}
+.dq{display:grid;grid-template-columns:150px 1fr 54px;gap:6px 10px;align-items:center;font-size:12.5px}
+.dq .bar{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+.dq .bar>div{height:100%;border-radius:5px}
+.dq .pct{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.tools input{font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);min-width:220px}
+.tools label{font-size:12.5px;color:var(--text-2);display:flex;gap:5px;align-items:center}
+footer{max-width:1400px;margin:0 auto;padding:0 16px 30px;font-size:11.5px;color:var(--muted)}
+.dark-tiles .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88)}
+.leaflet-popup-content{font-size:12.5px;line-height:1.4}
+@media (max-width:600px){header{padding:14px 16px}.kpi .val{font-size:24px}#map{height:340px}}
+@media print{.filters,.drop,header .hbtns,.tools{display:none!important}body{background:#fff}.card,.kpi{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="title">TB Notification Dashboard</h1>
+    <div class="sub" id="subtitle">TBIS 101A line list · upload a file to begin · all processing stays in your browser</div>
+  </div>
+  <div class="hbtns">
+    <button class="btn" id="btnLoad">+ Add files</button>
+    <button class="btn" id="btnTheme" title="Toggle light/dark">◐ Theme</button>
+    <button class="btn" onclick="window.print()">Print</button>
+  </div>
+</header>
+
+<main>
+  <div class="drop" id="drop">
+    <strong>Drop one or more TBIS 101A exports here (.xlsx / .xls / .csv)</strong>
+    or click to choose files — load several years at once to compare them
+    <small>Nothing is uploaded anywhere — the file is read locally in this browser tab.</small>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
+  </div>
+
+  <div id="app">
+    <div class="files" id="files"></div>
+    <div class="filters">
+      <label>Year<select id="fYear"></select></label>
+      <label>From<input type="date" id="fFrom"></label>
+      <label>To<input type="date" id="fTo"></label>
+      <label>Mukim<select id="fMukim"></select></label>
+      <label>Classification<select id="fCat"></select></label>
+      <label>Citizenship<select id="fCit"></select></label>
+      <label>Sex<select id="fSex"></select></label>
+      <label>Age group<select id="fAge"><option value="">All</option><option value="child">Children &lt;15</option><option value="adult">15 and over</option></select></label>
+      <button class="btn ghost" id="btnReset">Reset</button>
+      <div class="meta" id="meta"></div>
+    </div>
+
+    <div id="colWarn"></div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid">
+      <section class="card c12">
+        <div class="seg" id="segEpi"><button data-v="week" class="on">Weekly</button><button data-v="month">Monthly</button></div>
+        <h2>Epidemic curve by TB classification</h2>
+        <p class="desc" id="epiDesc">Notifications by date of notification (ISO week, Mon–Sun).</p>
+        <div class="legend" id="lgCat"></div>
+        <div class="chartbox"><canvas id="cEpi" role="img" aria-label="Epidemic curve"></canvas></div>
+      </section>
+
+      <section class="card c12" id="yrCard" style="display:none">
+        <div class="seg" id="segYr"><button data-v="cum" class="on">Cumulative</button><button data-v="month">Monthly</button></div>
+        <h2>Year-on-year comparison</h2>
+        <p class="desc" id="yrDesc"></p>
+        <div class="legend" id="lgYr"></div>
+        <div class="chartbox"><canvas id="cYr" role="img" aria-label="Year comparison"></canvas></div>
+        <div class="tablewrap" style="margin-top:12px;max-height:none"><table id="tYr"></table></div>
+      </section>
+
+      <section class="card c6">
+        <h2>Age–sex pyramid</h2>
+        <p class="desc">Cases by age group and sex.</p>
+        <div class="legend"><span><i style="background:var(--s7)"></i>Male</span><span><i style="background:var(--s5)"></i>Female</span></div>
+        <div class="chartbox tall"><canvas id="cPyr" role="img" aria-label="Age-sex pyramid"></canvas></div>
+      </section>
+
+      <section class="card c6">
+        <h2>TB classification</h2>
+        <p class="desc">Diagnosis labels harmonised from the free-text "Diagnosa Penuh" field.</p>
+        <div class="chartbox" style="height:170px"><canvas id="cCat" role="img" aria-label="Classification"></canvas></div>
+        <h2 style="margin-top:14px">Extrapulmonary sites</h2>
+        <p class="desc">As recorded.</p>
+        <div id="eptbList"></div>
+      </section>
+
+      <section class="card c7">
+        <h2>Case locations</h2>
+        <p class="desc">Notification address coordinates (recorded to ~2 decimal places ≈ 1 km; overlapping points are fanned out slightly). Colour = classification.</p>
+        <div id="map"></div>
+        <p class="desc" id="mapNote" style="margin-top:6px"></p>
+      </section>
+
+      <section class="card c5">
+        <h2>Cases by mukim</h2>
+        <p class="desc">Mukim as coded in eNotifikasi address.</p>
+        <div class="chartbox tall"><canvas id="cMukim" role="img" aria-label="Cases by mukim"></canvas></div>
+      </section>
+
+      <section class="card c6">
+        <h2>Top localities</h2>
+        <p class="desc">Lokaliti with the most notifications.</p>
+        <div class="chartbox tall"><canvas id="cLok" role="img" aria-label="Top localities"></canvas></div>
+      </section>
+
+      <section class="card c6">
+        <h2>Citizenship &amp; origin</h2>
+        <p class="desc">Non-citizen status and country of origin.</p>
+        <div class="chartbox" style="height:150px"><canvas id="cCit" role="img" aria-label="Citizenship"></canvas></div>
+        <div class="chartbox" style="height:150px;margin-top:10px"><canvas id="cCountry" role="img" aria-label="Country of origin"></canvas></div>
+      </section>
+
+      <section class="card c12">
+        <h2>Household &amp; paediatric clusters</h2>
+        <p class="desc">Addresses with ≥2 notifications, plus children notified on the same day in the same locality where no address was recorded. Children with TB point to a recent infectious source — check that an adult index case has been identified.</p>
+        <div id="alerts"></div>
+        <div class="tablewrap" style="max-height:360px"><table id="tClus"></table></div>
+      </section>
+
+      <section class="card c6">
+        <h2>Paediatric cases (&lt;15 years)</h2>
+        <p class="desc">Listed individually for contact-tracing follow-up.</p>
+        <div class="tablewrap" style="max-height:340px"><table id="tPaed"></table></div>
+      </section>
+
+      <section class="card c6">
+        <h2>Data completeness</h2>
+        <p class="desc">Share of filtered records with each field filled.</p>
+        <div class="dq" id="dq"></div>
+        <div id="dqNotes" style="margin-top:12px"></div>
+      </section>
+
+      <section class="card c12">
+        <h2>Line list</h2>
+        <p class="desc">Click a column header to sort. Names are masked to initials by default.</p>
+        <div class="tools">
+          <input type="search" id="q" placeholder="Search locality, address, diagnosis…">
+          <label><input type="checkbox" id="showNames"> Show full names</label>
+          <button class="btn ghost" id="btnCsv">Export filtered (de-identified CSV)</button>
+        </div>
+        <div class="tablewrap"><table id="tList"></table></div>
+      </section>
+    </div>
+  </div>
+</main>
+<footer id="foot">Offline-upload dashboard · Charts: Chart.js · Map: Leaflet · basemap © OpenStreetMap contributors (HOT / OSM France), Esri · Spreadsheet parsing: SheetJS</footer>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* ---------- theme ---------- */
+const themeKey='tbdash-theme';
+try{const t=localStorage.getItem(themeKey); if(t) document.documentElement.dataset.theme=t;}catch(e){}
+$('#btnTheme').onclick=()=>{
+  const cur=document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  const nx=cur==='dark'?'light':'dark';
+  document.documentElement.dataset.theme=nx;
+  try{localStorage.setItem(themeKey,nx);}catch(e){}
+  if(ALL.length) render();
+};
+
+/* ---------- constants ---------- */
+const CATS=['PTB smear +','PTB smear −','Extrapulmonary','Not recorded'];
+const CATVAR=['--s1','--s2','--s3','--gray'];
+const CATPILL=['ssp','ssn','ep','nr'];
+const AGEGRP=['0–4','5–14','15–24','25–34','35–44','45–54','55–64','65+'];
+const ageGroup=a=>a==null||isNaN(a)?null:a<5?0:a<15?1:a<25?2:a<35?3:a<45?4:a<55?5:a<65?6:7;
+
+/* ---------- parsing ---------- */
+const norm=s=>(s==null?'':String(s)).replace(/\s+/g,' ').trim();
+function parseDate(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date && !isNaN(v)) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v); return d?new Date(d.y,d.m-1,d.d):null;}
+  const s=String(v).trim();
+  let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){let y=+m[3]; if(y<100) y+=2000; return new Date(y,+m[2]-1,+m[1]);}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  return null;
+}
+function classify(dx){
+  const d=norm(dx).toUpperCase();
+  if(!d) return 3;
+  const pulm=/PULMONAR|\bPTB\b/.test(d) && !/EXTRA ?PTB|EXTRAPULMONAR/.test(d);
+  if(pulm){
+    if(/POSITI/.test(d)) return 0;
+    if(/NEGATI|NEGATIE/.test(d)) return 1;
+    return 1;
+  }
+  return 2;
+}
+function eptbSite(dx){
+  let d=norm(dx).toUpperCase().replace(/^(TIBI\s+)+/,'').replace(/^TB\s+/,'');
+  if(/^EXTRA ?PTB$/.test(d)) return 'Unspecified (EXTRA PTB)';
+  return d.charAt(0)+d.slice(1).toLowerCase();
+}
+const COLMAP={
+  nama:/^(nama|name)\b/i, dob:/tarikh lahir|date of birth|\bdob\b/i, age:/umur|\bage\b/i, sex:/jantina|\bsex\b|gender/i,
+  status:/bukan warganegara|nyatakan status|status (warganegara|pendatang)|immigration/i,
+  cit:/warganegara|kewarganegaraan|citizen|nationality/i,
+  country:/negara asal|country/i, mukim:/mukim/i, lok:/lokaliti|locality|kampung|kampong/i,
+  addr:/alamat kediaman|alamat rumah|^alamat$|alamat \(|address/i, bhg:/\bbhg\b|bahagian|kawasan/i, daerah:/daerah|district/i,
+  lat:/^lat|latitud/i, lon:/^lon|^lng|longitud/i, coord:/koordinat|coordinate|gps/i,
+  notif:/tarikh notifikasi|tarikh notifi|notification date|tarikh daftar|tarikh lapor/i, dx:/diagnos/i, outcome:/hasil rawatan|outcome|status rawatan/i
+};
+const COLLABEL={nama:'Nama',dob:'Tarikh Lahir',age:'Umur',sex:'Jantina',cit:'Warganegara',status:'Status bukan warganegara',country:'Negara Asal',mukim:'Mukim',lok:'Lokaliti',addr:'Alamat Kediaman',bhg:'Bhg/Kaw',daerah:'Daerah',lat:'Latitude',lon:'Longitude',coord:'Koordinat (lat, lon)',notif:'Tarikh Notifikasi',dx:'Diagnosa Penuh',outcome:'Hasil Rawatan'};
+const ORDER=['notif','dob','age','sex','status','country','cit','mukim','lok','addr','bhg','daerah','lat','lon','coord','dx','outcome','nama'];
+function mapHeaders(hdr){
+  const idx={}; const used=new Set();
+  for(const k of ORDER){
+    const re=COLMAP[k];
+    const i=hdr.findIndex((h,j)=>!used.has(j) && norm(h) && re.test(norm(h)));
+    if(i>=0){idx[k]=i; used.add(i);}
+  }
+  return idx;
+}
+const num=v=>{if(v==null||v==='') return NaN; if(typeof v==='number') return v; return parseFloat(String(v).replace(',','.').replace(/[^\d.\-]/g,''));};
+let COLINFO={found:{},missing:[],headerRow:0,sheet:''};
+function findHeader(rows){
+  let best=-1,bs=0;
+  for(let i=0;i<Math.min(rows.length,40);i++){
+    const r=rows[i]; if(!r) continue;
+    const sc=Object.keys(mapHeaders(r)).length - (r.filter(c=>norm(c)).length<4?10:0);
+    if(sc>bs){bs=sc;best=i;}
+  }
+  return {hi:best,score:bs};
+}
+function ingest(rows){
+  const {hi}=findHeader(rows);
+  if(hi<0) throw new Error('Could not find a header row — is this a TBIS 101A export?');
+  const idx=mapHeaders(rows[hi]);
+  if(idx.notif==null) throw new Error('No notification-date column found (expected "Tarikh Notifikasi"). Headers seen: '+rows[hi].filter(Boolean).join(' | '));
+  COLINFO={headerRow:hi+1,found:Object.fromEntries(Object.entries(idx).map(([k,i])=>[k,norm(rows[hi][i])])),missing:Object.keys(COLLABEL).filter(k=>idx[k]==null&&!(k==='coord'&&idx.lat!=null)&&!((k==='lat'||k==='lon')&&idx.coord!=null))};
+  const out=[];
+  for(const r of rows.slice(hi+1)){
+    if(!r || r.every(c=>norm(c)==='')) continue;
+    const g=k=>idx[k]==null?null:r[idx[k]];
+    const dob=parseDate(g('dob')), notif=parseDate(g('notif'));
+    if(!notif && !norm(g('nama')) && !norm(g('dx'))) continue;
+    let age=parseFloat(norm(g('age')));
+    if(isNaN(age) && dob && notif) age=Math.floor((notif-dob)/(365.25*864e5));
+    const dx=norm(g('dx'));
+    const sexRaw=norm(g('sex')).toUpperCase();
+    const citRaw=norm(g('cit'));
+    let lat=num(g('lat')), lon=num(g('lon'));
+    if((isNaN(lat)||isNaN(lon)) && g('coord')!=null){const m=String(g('coord')).match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/); if(m){lat=+m[1];lon=+m[2];}}
+    if(!isNaN(lat)&&!isNaN(lon)&&Math.abs(lat)>Math.abs(lon)){const t=lat;lat=lon;lon=t;}
+    if(lat===0&&lon===0){lat=NaN;lon=NaN;}
+    out.push({
+      nama:norm(g('nama')), dob, age:isNaN(age)?null:age,
+      sex:/PEREMPUAN|FEMALE|^F$|^P$/.test(sexRaw)?'Female':/LELAKI|MALE|^M$|^L$/.test(sexRaw)?'Male':'Unknown',
+      cit:/bukan|non/i.test(citRaw)?'Non-citizen':citRaw?'Citizen':'Unknown',
+      status:norm(g('status')), country:norm(g('country')),
+      mukim:norm(g('mukim')).toUpperCase(), lok:norm(g('lok')).toUpperCase(),
+      addr:norm(g('addr')), daerah:norm(g('daerah')).toUpperCase(),
+      lat, lon,
+      notif, dx, cat:classify(dx), outcome:norm(g('outcome'))
+    });
+  }
+  return out;
+}
+
+/* ---------- state ---------- */
+let ALL=[], F=[], FILES=[], fileName='', epiMode='week', yrMode='cum';
+const YRVAR=['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+const charts={};
+let map, layer, baseChosen=null, DEFAULT_BASE=null; const BASE={};
+  function setTileTheme(){ if(!map) return; const isDark=getComputedStyle(document.documentElement).colorScheme.includes('dark'); const cur=baseChosen||DEFAULT_BASE; map.getContainer().classList.toggle('dark-tiles',isDark&&cur!==BASE.sat); }
+
+/* ---------- file handling ---------- */
+const drop=$('#drop'), fileIn=$('#file');
+drop.onclick=()=>fileIn.click();
+$('#btnLoad').onclick=()=>fileIn.click();
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',ev=>{if(ev.dataTransfer.files.length) readFiles([...ev.dataTransfer.files]);});
+document.addEventListener('dragover',ev=>ev.preventDefault());
+document.addEventListener('drop',ev=>{ev.preventDefault(); if(ALL.length && ev.dataTransfer.files.length) readFiles([...ev.dataTransfer.files]);});
+fileIn.onchange=()=>{if(fileIn.files.length) readFiles([...fileIn.files]); fileIn.value='';};
+const readBuf=f=>new Promise((res,rej)=>{const rd=new FileReader(); rd.onload=e=>res(e.target.result); rd.onerror=()=>rej(rd.error); rd.readAsArrayBuffer(f);});
+async function readFiles(list){
+  const errs=[];
+  for(const f of list){
+    try{
+      const wb=XLSX.read(new Uint8Array(await readBuf(f)),{type:'array',cellDates:true});
+      let rows=null,bs=-1,sheet='';
+      for(const n of wb.SheetNames){const rr=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null}); const sc=findHeader(rr).score; if(sc>bs){bs=sc;rows=rr;sheet=n;}}
+      const recs=ingest(rows);
+      if(!recs.length) throw new Error('No case rows found.');
+      // register year: from the file name (e.g. ...TBIS101A-2026.xlsx), else the most common notification year
+      const fy=(f.name.match(/20\d{2}/g)||[]).pop();
+      const ny=[...count(recs.filter(r=>r.notif),r=>r.notif.getFullYear()).entries()].sort((a,b)=>b[1]-a[1])[0]?.[0];
+      const year=+(fy||ny||0);
+      recs.forEach(r=>{r.yr=year; r.src=f.name;});
+      FILES=FILES.filter(x=>x.name!==f.name);
+      FILES.push({name:f.name,year,yearFrom:fy?'file name':'notification dates',recs,info:{...COLINFO,sheet}});
+    }catch(err){errs.push(`${f.name}: ${err.message}`); console.error(err);}
+  }
+  if(errs.length) alert('Some files could not be read:\n\n'+errs.join('\n'));
+  rebuild();
+}
+function rebuild(){
+  FILES.sort((a,b)=>a.year-b.year||a.name.localeCompare(b.name));
+  const seen=new Set(); ALL=[];
+  FILES.forEach(f=>f.dups=0);
+  // pass 1 keeps records whose notification date belongs to their file's year, so a case listed in two
+  // registers is kept in the year it was notified; pass 2 adds the rest
+  const home=(r,f)=>r.notif && (r.notif.getFullYear()===f.year || isoWeek(r.notif).y===f.year);
+  for(const pass of [true,false]) for(const f of FILES) for(const r of f.recs){
+    if(!!home(r,f)!==pass) continue;
+    const k=r.nama?`${r.nama.toUpperCase()}|${iso(r.dob)}|${iso(r.notif)}`:null;
+    if(k && seen.has(k)){f.dups++; continue;}
+    if(k) seen.add(k); ALL.push(r);
+  }
+  if(!ALL.length){ $('#app').style.display='none'; drop.style.display='block'; $('#subtitle').textContent='TBIS 101A line list · upload files to begin · all processing stays in your browser'; return; }
+  fileName=FILES.length===1?FILES[0].name:`TBIS101A_${FILES[0].year}-${FILES[FILES.length-1].year}`;
+  setup();
+}
+function renderFiles(){
+  $('#files').innerHTML='<span>Loaded:</span>'+FILES.map((f,i)=>`<span class="chip" title="Sheet “${esc(f.info.sheet)}”, header row ${f.info.headerRow}; year taken from ${f.yearFrom}">${esc(f.name)} <small>${f.year||'?'} · ${f.recs.length-f.dups} cases${f.dups?` · ${f.dups} duplicate${f.dups>1?'s':''} skipped`:''}</small><button data-i="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('')+'<button class="btn ghost" id="btnAdd2" style="padding:4px 10px">+ Add files</button>';
+  $('#files').querySelectorAll('.chip button').forEach(b=>b.onclick=()=>{FILES.splice(+b.dataset.i,1); rebuild();});
+  $('#btnAdd2').onclick=()=>fileIn.click();
+}
+
+/* ---------- helpers ---------- */
+const fmtD=d=>d?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+const iso=d=>d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'';
+function isoWeek(d){
+  const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day);
+  const y=t.getUTCFullYear(); const w=Math.ceil(((t-Date.UTC(y,0,1))/864e5+1)/7);
+  return {y,w};
+}
+function weekStart(d){const t=new Date(d); const day=t.getDay()||7; t.setDate(t.getDate()-day+1); return t;}
+const count=(arr,fn)=>{const m=new Map(); for(const x of arr){const k=fn(x); m.set(k,(m.get(k)||0)+1);} return m;};
+const pct=(a,b)=>b?Math.round(a/b*1000)/10:0;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const initials=n=>n?n.split(/\s+/).filter(w=>!/^(BIN|BINTI|BT|BTE|B|A\/L|A\/P|@)$/i.test(w)).map(w=>w[0]).join('.')+'.':'—';
+const addrKey=a=>a.toUpperCase().replace(/[.,]/g,' ').replace(/\bKG\b/g,'KAMPUNG').replace(/\s+/g,' ').trim();
+function opts(sel,vals,label='All'){sel.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');}
+
+/* ---------- setup ---------- */
+function setup(){
+  drop.style.display='none'; $('#app').style.display='block';
+  const dates=ALL.map(r=>r.notif).filter(Boolean).sort((a,b)=>a-b);
+  const dmin=dates[0], dmax=dates[dates.length-1];
+  $('#fFrom').value=iso(dmin); $('#fTo').value=iso(dmax);
+  $('#fFrom').dataset.def=iso(dmin); $('#fTo').dataset.def=iso(dmax);
+  const years=[...new Set(ALL.map(r=>r.yr))].sort();
+  const prevY=$('#fYear').value;
+  opts($('#fYear'),years.map(String),years.length>1?'All years':'All');
+  if(years.map(String).includes(prevY)) $('#fYear').value=prevY;
+  const prevM=$('#fMukim').value;
+  opts($('#fMukim'),[...new Set(ALL.map(r=>r.mukim||'(blank)'))].sort());
+  if([...$('#fMukim').options].some(o=>o.value===prevM)) $('#fMukim').value=prevM;
+  renderFiles();
+  $('#fCat').innerHTML='<option value="">All</option>'+CATS.map((c,i)=>`<option value="${i}">${c}</option>`).join('');
+  opts($('#fCit'),['Citizen','Non-citizen']);
+  opts($('#fSex'),['Male','Female']);
+  const dist=[...count(ALL,r=>r.daerah).entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+  $('#title').textContent=`TB Notification Dashboard${dist?' — Daerah '+dist.charAt(0)+dist.slice(1).toLowerCase():''}`;
+  $('#subtitle').textContent=`TBIS 101A · ${FILES.length>1?FILES.length+' files ('+years.join(', ')+')':fileName} · ${ALL.length} records · notified ${fmtD(dmin)} – ${fmtD(dmax)}`;
+  render();
+}
+['#fYear','#fFrom','#fTo','#fMukim','#fCat','#fCit','#fSex','#fAge'].forEach(s=>$(s).addEventListener('change',render));
+$('#btnReset').onclick=()=>{['#fYear','#fMukim','#fCat','#fCit','#fSex','#fAge'].forEach(s=>$(s).value='');$('#fFrom').value=$('#fFrom').dataset.def;$('#fTo').value=$('#fTo').dataset.def;render();};
+$('#segYr').onclick=e=>{const b=e.target.closest('button'); if(!b) return; yrMode=b.dataset.v; [...$('#segYr').children].forEach(x=>x.classList.toggle('on',x===b)); renderYears();};
+$('#segEpi').onclick=e=>{const b=e.target.closest('button'); if(!b) return; epiMode=b.dataset.v; [...$('#segEpi').children].forEach(x=>x.classList.toggle('on',x===b)); renderEpi();};
+$('#q').addEventListener('input',()=>renderList());
+$('#showNames').addEventListener('change',()=>{renderList();renderPaed();renderClusters();});
+
+let FY=[];
+function applyFilters(){
+  const from=parseDate($('#fFrom').value), to=parseDate($('#fTo').value);
+  const yr=$('#fYear').value;
+  const mk=$('#fMukim').value, cat=$('#fCat').value, cit=$('#fCit').value, sex=$('#fSex').value, ag=$('#fAge').value;
+  const pred=(r,timeToo)=>{
+    if(timeToo){
+    if(yr && String(r.yr)!==yr) return false;
+    if(from && r.notif && r.notif<from) return false;
+    if(to && r.notif && r.notif>to) return false;
+    }
+    if(mk && (r.mukim||'(blank)')!==mk) return false;
+    if(cat!=='' && r.cat!==+cat) return false;
+    if(cit && r.cit!==cit) return false;
+    if(sex && r.sex!==sex) return false;
+    if(ag==='child' && !(r.age!=null && r.age<15)) return false;
+    if(ag==='adult' && !(r.age!=null && r.age>=15)) return false;
+    return true;
+  };
+  F=ALL.filter(r=>pred(r,true));
+  FY=ALL.filter(r=>pred(r,false));   // for year comparison: ignores year & date filters
+  $('#meta').textContent=`Showing ${F.length} of ${ALL.length} records`;
+  const KEYC=['mukim','lok','lat','lon','coord','dx','addr','age','sex'];
+  $('#colWarn').innerHTML=FILES.map(f=>{const miss=f.info.missing.filter(k=>KEYC.includes(k)); return miss.length?`<div class="alert warn"><b>${esc(f.name)}: some expected columns were not found:</b> ${miss.map(k=>COLLABEL[k]).join(', ')}. See “Data completeness” for the columns that were detected.</div>`:'';}).join('');
+}
+
+/* ---------- Chart.js defaults ---------- */
+function chartTheme(){
+  Chart.defaults.font.family='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  Chart.defaults.font.size=12;
+  Chart.defaults.color=css('--text-2');
+  Chart.defaults.borderColor=css('--grid');
+  Chart.defaults.plugins.legend.display=false;
+  Chart.defaults.plugins.tooltip.backgroundColor=css('--surface');
+  Chart.defaults.plugins.tooltip.titleColor=css('--text');
+  Chart.defaults.plugins.tooltip.bodyColor=css('--text-2');
+  Chart.defaults.plugins.tooltip.borderColor=css('--border');
+  Chart.defaults.plugins.tooltip.borderWidth=1;
+  Chart.defaults.plugins.tooltip.padding=9;
+  Chart.defaults.maintainAspectRatio=false;
+  Chart.defaults.animation.duration=250;
+}
+function mk(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart($('#'+id),cfg); }
+const barDs=(label,data,color,extra={})=>({label,data,backgroundColor:color,borderColor:css('--surface'),borderWidth:{top:0,bottom:0,left:0,right:0},borderRadius:4,borderSkipped:'start',maxBarThickness:42,...extra});
+const axisNum={beginAtZero:true,ticks:{precision:0},grid:{color:css('--grid')},border:{display:false}};
+const axisCat={grid:{display:false},border:{color:css('--border')}};
+
+/* ---------- render ---------- */
+function render(){
+  chartTheme(); applyFilters();
+  $('#lgCat').innerHTML=CATS.map((c,i)=>`<span><i style="background:var(${CATVAR[i]})"></i>${c}</span>`).join('');
+  renderKpis(); renderEpi(); renderYears(); renderPyr(); renderCat(); renderMap(); renderPlace(); renderCit();
+  renderClusters(); renderPaed(); renderDQ(); renderList();
+}
+
+function renderKpis(){
+  const n=F.length;
+  const ptb=F.filter(r=>r.cat<=1).length, ssp=F.filter(r=>r.cat===0).length;
+  const kids=F.filter(r=>r.age!=null&&r.age<15).length;
+  const nc=F.filter(r=>r.cit==='Non-citizen').length;
+  const ep=F.filter(r=>r.cat===2).length;
+  const male=F.filter(r=>r.sex==='Male').length;
+  const ages=F.map(r=>r.age).filter(a=>a!=null).sort((a,b)=>a-b);
+  const med=ages.length?(ages.length%2?ages[(ages.length-1)/2]:(ages[ages.length/2-1]+ages[ages.length/2])/2):null;
+  const outc=F.filter(r=>r.outcome).length;
+  const tiles=[
+    ['Total notifications',n,`${male} male · ${n-male} female`],
+    ['PTB smear-positive',ssp,`${pct(ssp,ptb)}% of pulmonary cases`],
+    ['Children under 15',kids,`${pct(kids,n)}% of notifications`],
+    ['Non-citizens',nc,`${pct(nc,n)}% of notifications`],
+    ['Extrapulmonary TB',ep,`${pct(ep,n)}% of notifications`],
+    ['Median age',med==null?'—':med,ages.length?`range ${ages[0]}–${ages[ages.length-1]} years`:''],
+    ['Outcome recorded',`${pct(outc,n)}%`,`${outc} of ${n} records`],
+  ];
+  $('#kpis').innerHTML=tiles.map(t=>`<div class="kpi"><div class="lab">${t[0]}</div><div class="val">${t[1]}</div><div class="note">${t[2]}</div></div>`).join('');
+}
+
+function renderEpi(){
+  const withD=F.filter(r=>r.notif);
+  const keys=[], lab=[], tip=[];
+  if(!withD.length){mk('cEpi',{type:'bar',data:{labels:[],datasets:[]}});return;}
+  const dmin=withD.reduce((a,r)=>r.notif<a?r.notif:a,withD[0].notif), dmax=withD.reduce((a,r)=>r.notif>a?r.notif:a,withD[0].notif);
+  let keyOf;
+  if(epiMode==='week'){
+    keyOf=d=>{const w=isoWeek(d);return `${w.y}-W${String(w.w).padStart(2,'0')}`;};
+    for(let d=weekStart(dmin); d<=dmax; d.setDate(d.getDate()+7)){
+      const k=keyOf(d); keys.push(k); const w=isoWeek(d);
+      lab.push(new Set(withD.map(r=>isoWeek(r.notif).y)).size>1?`W${w.w}/${String(w.y).slice(2)}`:`W${w.w}`); const e=new Date(d); e.setDate(e.getDate()+6);
+      tip.push(`${w.y} week ${w.w} (${fmtD(new Date(d))} – ${fmtD(e)})`);
+    }
+    $('#epiDesc').textContent='Notifications by date of notification (ISO week, Mon–Sun). Last week may be incomplete.';
+  }else{
+    keyOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    for(let d=new Date(dmin.getFullYear(),dmin.getMonth(),1); d<=dmax; d.setMonth(d.getMonth()+1)){
+      keys.push(keyOf(d)); lab.push(d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'})); tip.push(d.toLocaleDateString('en-GB',{month:'long',year:'numeric'}));
+    }
+    $('#epiDesc').textContent='Notifications by month of notification. First and last months may be partial.';
+  }
+  const ds=CATS.map((c,i)=>{
+    const m=count(withD.filter(r=>r.cat===i),r=>keyOf(r.notif));
+    return barDs(c,keys.map(k=>m.get(k)||0),css(CATVAR[i]),{borderWidth:{top:2,bottom:0,left:0,right:0},borderRadius:0,borderSkipped:false,maxBarThickness:48});
+  }).filter(d=>d.data.some(v=>v));
+  // round only the top-most segment of each stack
+  ds.forEach((d,di)=>{d.borderRadius=ctx=>{const i=ctx.dataIndex; const above=ds.slice(di+1).some(o=>o.data[i]>0); return above?0:{topLeft:4,topRight:4};};});
+  mk('cEpi',{type:'bar',data:{labels:lab,datasets:ds},options:{
+    interaction:{mode:'index',intersect:false},
+    scales:{x:{...axisCat,stacked:true,ticks:{maxRotation:0,autoSkip:true,autoSkipPadding:10}},y:{...axisNum,stacked:true,title:{display:true,text:'Notifications'}}},
+    plugins:{tooltip:{filter:i=>i.raw>0,callbacks:{title:it=>tip[it[0].dataIndex],footer:it=>'Total: '+it.reduce((a,b)=>a+b.raw,0)}}}
+  }});
+}
+
+function renderYears(){
+  const years=[...new Set(ALL.map(r=>r.yr))].sort();
+  $('#yrCard').style.display=years.length>1?'block':'none';
+  if(years.length<2) return;
+  const allYears=years; // colour follows the year, not its position in a filtered list
+  const col=y=>css(YRVAR[allYears.indexOf(y)%YRVAR.length]);
+  const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // month within the register year: early-Dec notifications of the previous year count in January
+  const mIdx=r=>!r.notif?null:r.notif.getFullYear()<r.yr?0:r.notif.getFullYear()>r.yr?11:r.notif.getMonth();
+  const now=new Date();
+  const ds=years.map(y=>{
+    const rs=FY.filter(r=>r.yr===y && r.notif);
+    const m=Array(12).fill(0); rs.forEach(r=>m[mIdx(r)]++);
+    // last month with data in this file, so incomplete years stop rather than flat-line
+    const lastDate=rs.reduce((a,r)=>r.notif>a?r.notif:a,new Date(0));
+    let last=11; if(lastDate.getFullYear()===y && !(y<now.getFullYear() && lastDate.getMonth()>=10)) last=lastDate.getMonth();
+    let run=0; const vals=m.map((v,i)=>{run+=v; return i>last?null:(yrMode==='cum'?run:v);});
+    return {label:String(y),data:vals,borderColor:col(y),backgroundColor:col(y),borderWidth:2,pointRadius:3,pointHoverRadius:5,tension:0,spanGaps:false};
+  });
+  $('#lgYr').innerHTML=years.map(y=>`<span><i style="background:${col(y)}"></i>${y}</span>`).join('');
+  $('#yrDesc').textContent=(yrMode==='cum'?'Cumulative notifications by month of the register year':'Notifications per month of the register year')+'. Year and date filters are ignored here; other filters apply. A year stops at its last month of data.';
+  mk('cYr',{type:'line',data:{labels:MON,datasets:ds},options:{interaction:{mode:'index',intersect:false},
+    scales:{x:axisCat,y:{...axisNum,title:{display:true,text:yrMode==='cum'?'Cumulative notifications':'Notifications'}}},
+    plugins:{tooltip:{callbacks:{label:c=>c.raw==null?null:`${c.dataset.label}: ${c.raw}`}}}}});
+  // summary table
+  const rows=years.map(y=>{const rs=FY.filter(r=>r.yr===y); const n=rs.length, ptb=rs.filter(r=>r.cat<=1).length, ssp=rs.filter(r=>r.cat===0).length;
+    const kids=rs.filter(r=>r.age!=null&&r.age<15).length, nc=rs.filter(r=>r.cit==='Non-citizen').length, ep=rs.filter(r=>r.cat===2).length;
+    const ds=rs.map(r=>r.notif).filter(Boolean).sort((a,b)=>a-b);
+    return `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${col(y)};margin-right:6px"></i>${y}</td><td>${ds.length?fmtD(ds[0])+' – '+fmtD(ds[ds.length-1]):'—'}</td><td class="num">${n}</td><td class="num">${ssp} (${pct(ssp,ptb)}%)</td><td class="num">${ep} (${pct(ep,n)}%)</td><td class="num">${kids} (${pct(kids,n)}%)</td><td class="num">${nc} (${pct(nc,n)}%)</td><td class="num">${rs.filter(r=>r.sex==='Male').length} (${pct(rs.filter(r=>r.sex==='Male').length,n)}%)</td></tr>`;});
+  $('#tYr').innerHTML=`<thead><tr><th>Year</th><th>Notification period</th><th class="num">Cases</th><th class="num">PTB smear + (% of PTB)</th><th class="num">Extrapulmonary</th><th class="num">Children &lt;15</th><th class="num">Non-citizens</th><th class="num">Male</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+}
+
+function renderPyr(){
+  const m=AGEGRP.map((_,i)=>F.filter(r=>r.sex==='Male'&&ageGroup(r.age)===i).length);
+  const f=AGEGRP.map((_,i)=>F.filter(r=>r.sex==='Female'&&ageGroup(r.age)===i).length);
+  const raw=Math.max(1,...m,...f); const step=raw<=10?2:raw<=25?5:10; const mx=Math.ceil(raw/step)*step;
+  const labels=[...AGEGRP].reverse();
+  mk('cPyr',{type:'bar',data:{labels,datasets:[
+    barDs('Male',[...m].reverse().map(v=>-v),css('--s7'),{borderSkipped:'end',barPercentage:.9,categoryPercentage:.9}),
+    barDs('Female',[...f].reverse(),css('--s5'),{borderSkipped:'start',barPercentage:.9,categoryPercentage:.9})
+  ]},options:{indexAxis:'y',
+    scales:{x:{...axisNum,beginAtZero:false,min:-mx,max:mx,ticks:{stepSize:step,precision:0,callback:v=>Math.abs(v)}},y:{...axisCat,stacked:true}},
+    plugins:{tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${Math.abs(c.raw)}`}}}
+  }});
+}
+
+function renderCat(){
+  const c=CATS.map((_,i)=>F.filter(r=>r.cat===i).length);
+  mk('cCat',{type:'bar',data:{labels:CATS,datasets:[barDs('Cases',c,CATS.map((_,i)=>css(CATVAR[i])),{borderSkipped:'start',maxBarThickness:26})]},
+    options:{indexAxis:'y',scales:{x:axisNum,y:axisCat},plugins:{tooltip:{callbacks:{label:x=>`${x.raw} cases (${pct(x.raw,F.length)}%)`}}}}});
+  const sites=[...count(F.filter(r=>r.cat===2),r=>eptbSite(r.dx)).entries()].sort((a,b)=>b[1]-a[1]);
+  $('#eptbList').innerHTML=sites.length?`<table><tbody>${sites.map(([s,n])=>`<tr><td>${esc(s)}</td><td class="num">${n}</td></tr>`).join('')}</tbody></table>`:'<p class="desc">None in current filter.</p>';
+}
+
+function renderMap(){
+  const pts=F.filter(r=>!isNaN(r.lat)&&!isNaN(r.lon));
+  if(!map){
+    map=L.map('map',{scrollWheelZoom:false}).setView([5.6,117.0],7);
+    const osmAttr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    BASE.osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:osmAttr,referrerPolicy:'strict-origin-when-cross-origin'});
+    BASE.hot=L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19,subdomains:'abc',attribution:osmAttr+', tiles: Humanitarian OSM Team / OSM France'});
+    BASE.esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri — sources: Esri, HERE, Garmin, OpenStreetMap contributors'});
+    BASE.sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'});
+    L.control.layers({'OpenStreetMap':BASE.osm,'OpenStreetMap (Humanitarian)':BASE.hot,'Esri street map':BASE.esri,'Satellite':BASE.sat},null,{position:'topright'}).addTo(map);
+    map.on('baselayerchange',e=>{baseChosen=e.layer; setTileTheme();});
+    // auto-fallback: if a street layer keeps failing (blocked / offline), move to the next one
+    const chain=[BASE.osm,BASE.hot,BASE.esri];
+    chain.forEach((l,i)=>{let fails=0,oks=0;
+      l.on('tileload',()=>{oks++;});
+      l.on('tileerror',()=>{fails++; if(fails>=4&&oks===0&&map.hasLayer(l)&&chain[i+1]){map.removeLayer(l); chain[i+1].addTo(map); baseChosen=chain[i+1]; setTileTheme();}});});
+    // OSM's main tile servers refuse pages opened from file:// (no referrer) — start on the HOT style there
+    DEFAULT_BASE=location.protocol.startsWith('http')?BASE.osm:BASE.hot;
+    layer=L.layerGroup().addTo(map);
+    const lg=L.control({position:'bottomright'});
+    lg.onAdd=()=>{const d=L.DomUtil.create('div'); d.style.cssText='background:var(--surface);color:var(--text);padding:6px 9px;border-radius:8px;border:1px solid var(--border);font-size:12px;line-height:1.6';
+      d.innerHTML=CATS.map((c,i)=>`<div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(${CATVAR[i]});margin-right:6px;border:1.5px solid var(--surface)"></span>${c}</div>`).join('')+'<div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--text);margin-right:6px"></span>Child &lt;15</div>'; return d;};
+    lg.addTo(map);
+  }
+  const want=baseChosen||DEFAULT_BASE;
+  Object.values(BASE).forEach(l=>{if(l!==want&&map.hasLayer(l)) map.removeLayer(l);});
+  if(!map.hasLayer(want)) want.addTo(map);
+  setTileTheme();
+  layer.clearLayers();
+  const seen=new Map(); const bounds=[];
+  const showN=$('#showNames').checked;
+  for(const r of pts){
+    const k=r.lat.toFixed(3)+','+r.lon.toFixed(3); const n=seen.get(k)||0; seen.set(k,n+1);
+    const ang=n*2.4, rad=n?0.0012*Math.sqrt(n):0;
+    const la=r.lat+rad*Math.sin(ang), lo=r.lon+rad*Math.cos(ang);
+    bounds.push([la,lo]);
+    const kid=r.age!=null&&r.age<15;
+    L.circleMarker([la,lo],{radius:kid?7:6,color:kid?css('--text'):css('--surface'),weight:kid?2:1.5,fillColor:css(CATVAR[r.cat]),fillOpacity:.9})
+      .bindPopup(`<b>${esc(showN?r.nama:initials(r.nama))}</b> · ${r.age??'?'} y · ${r.sex}<br>${CATS[r.cat]}${r.dx?` <span style="opacity:.7">(${esc(r.dx)})</span>`:''}<br>Notified ${fmtD(r.notif)}<br>${esc(r.lok||'—')}, ${esc(r.mukim||'—')}<br><span style="opacity:.7">${esc(r.cit)}${r.country?' · '+esc(r.country):''}</span>`)
+      .addTo(layer);
+  }
+  if(bounds.length) map.fitBounds(bounds,{padding:[24,24],maxZoom:13}); else map.setView([5.6,117.0],7);
+  setTimeout(()=>map.invalidateSize(),50);
+  $('#mapNote').textContent=`${pts.length} of ${F.length} records mapped${F.length-pts.length?` · ${F.length-pts.length} without coordinates`:''}. Thick outline = child under 15.`;
+}
+
+function hbar(id,entries,color){
+  mk(id,{type:'bar',data:{labels:entries.map(e=>e[0]),datasets:[barDs('Cases',entries.map(e=>e[1]),color,{borderSkipped:'start',maxBarThickness:22})]},
+    options:{indexAxis:'y',scales:{x:axisNum,y:{...axisCat,ticks:{autoSkip:false}}},plugins:{tooltip:{callbacks:{label:x=>`${x.raw} cases (${pct(x.raw,F.length)}%)`}}}}});
+}
+function renderPlace(){
+  hbar('cMukim',[...count(F,r=>r.mukim||'(blank)').entries()].sort((a,b)=>b[1]-a[1]),css('--s1'));
+  hbar('cLok',[...count(F.filter(r=>r.lok),r=>r.lok).entries()].sort((a,b)=>b[1]-a[1]).slice(0,12),css('--s1'));
+}
+function renderCit(){
+  const nc=F.filter(r=>r.cit==='Non-citizen');
+  const st=[['Citizen',F.filter(r=>r.cit==='Citizen').length],...[...count(nc,r=>r.status||'Status not stated').entries()].sort((a,b)=>b[1]-a[1])];
+  hbar('cCit',st,css('--s1'));
+  hbar('cCountry',[...count(nc,r=>r.country||'Not stated').entries()].sort((a,b)=>b[1]-a[1]),css('--s1'));
+}
+
+/* ---------- clusters ---------- */
+function clusters(){
+  const out=[];
+  const byA=new Map();
+  for(const r of F){ if(r.addr){const k=addrKey(r.addr); if(!byA.has(k)) byA.set(k,[]); byA.get(k).push(r);} }
+  for(const [k,rs] of byA) if(rs.length>1) out.push({type:'Same address',place:rs[0].addr,lok:rs[0].lok,rs});
+  const noA=F.filter(r=>!r.addr && r.age!=null && r.age<15 && r.notif);
+  const byL=new Map();
+  for(const r of noA){const k=r.lok+'|'+iso(r.notif); if(!byL.has(k)) byL.set(k,[]); byL.get(k).push(r);}
+  for(const [k,rs] of byL) if(rs.length>1) out.push({type:'Same locality & day (no address)',place:rs[0].lok||rs[0].mukim,lok:rs[0].lok,rs});
+  out.forEach(c=>{c.kids=c.rs.filter(r=>r.age!=null&&r.age<15).length; c.adults=c.rs.length-c.kids; c.ssp=c.rs.filter(r=>r.cat===0).length;
+    c.first=c.rs.reduce((a,r)=>!a||r.notif<a?r.notif:a,null); c.last=c.rs.reduce((a,r)=>!a||r.notif>a?r.notif:a,null);});
+  return out.sort((a,b)=>b.kids-a.kids||b.rs.length-a.rs.length);
+}
+function renderClusters(){
+  const cl=clusters(); const showN=$('#showNames').checked;
+  const al=[];
+  cl.filter(c=>c.kids>=2&&c.ssp===0).forEach(c=>al.push(`<div class="alert crit"><b>⚠ ${c.kids} children, no smear-positive adult recorded</b> — ${esc(c.place)} (${fmtD(c.first)}). Source case may be undiagnosed or notified under another address/district.</div>`));
+  const lokTop=[...count(F.filter(r=>r.lok),r=>r.lok).entries()].sort((a,b)=>b[1]-a[1])[0];
+  if(lokTop && lokTop[1]>=Math.max(5,F.length*0.08)){
+    const k=F.filter(r=>r.lok===lokTop[0]&&r.age!=null&&r.age<15).length;
+    al.push(`<div class="alert warn"><b>Hotspot:</b> ${esc(lokTop[0])} accounts for ${lokTop[1]} notifications (${pct(lokTop[1],F.length)}%)${k?`, including ${k} children`:''}. Consider active case finding.</div>`);
+  }
+  $('#alerts').innerHTML=al.join('')||'<p class="desc">No flagged clusters in current filter.</p>';
+  $('#tClus').innerHTML=`<thead><tr><th>Type</th><th>Address / locality</th><th class="num">Cases</th><th class="num">Children</th><th class="num">Smear +</th><th>Notified</th><th>Members (age/sex · classification)</th></tr></thead><tbody>`+
+    (cl.map(c=>`<tr><td>${c.type}</td><td>${esc(c.place)}</td><td class="num">${c.rs.length}</td><td class="num">${c.kids}</td><td class="num">${c.ssp}</td><td>${fmtD(c.first)}${+c.first!==+c.last?' – '+fmtD(c.last):''}</td><td>${c.rs.map(r=>`${showN?esc(r.nama)+' · ':''}${r.age??'?'}${r.sex[0]} <span class="pill ${CATPILL[r.cat]}">${CATS[r.cat]}</span>`).join('<br>')}</td></tr>`).join('')||'<tr><td colspan="7" class="desc">None</td></tr>')+'</tbody>';
+}
+function renderPaed(){
+  const showN=$('#showNames').checked;
+  const k=F.filter(r=>r.age!=null&&r.age<15).sort((a,b)=>a.notif-b.notif);
+  $('#tPaed').innerHTML=`<thead><tr><th>Notified</th><th>Name</th><th class="num">Age</th><th>Sex</th><th>Locality</th><th>Classification</th><th>Citizenship</th></tr></thead><tbody>`+
+    (k.map(r=>`<tr><td>${fmtD(r.notif)}</td><td>${esc(showN?r.nama:initials(r.nama))}</td><td class="num">${r.age}</td><td>${r.sex}</td><td>${esc(r.lok||r.mukim||'—')}</td><td><span class="pill ${CATPILL[r.cat]}">${CATS[r.cat]}</span></td><td>${r.cit}</td></tr>`).join('')||'<tr><td colspan="7" class="desc">None</td></tr>')+'</tbody>';
+}
+
+/* ---------- data quality ---------- */
+function renderDQ(){
+  const n=F.length||1;
+  const fields=[['Diagnosis',r=>r.dx],['Notification date',r=>r.notif],['Age',r=>r.age!=null],['Mukim',r=>r.mukim],['Lokaliti',r=>r.lok],['Home address',r=>r.addr],['Coordinates',r=>!isNaN(r.lat)&&!isNaN(r.lon)],['Treatment outcome',r=>r.outcome]];
+  $('#dq').innerHTML=fields.map(([l,fn])=>{const c=F.filter(fn).length,p=pct(c,n);const col=p>=95?'var(--s3)':p>=80?'var(--s4)':'var(--s2)';
+    return `<div>${l}</div><div class="bar" title="${c} of ${F.length}"><div style="width:${p}%;background:${col}"></div></div><div class="pct">${p}%</div>`;}).join('');
+  const notes=[];
+  const dxLabels=new Set(F.map(r=>r.dx).filter(Boolean));
+  notes.push(`${dxLabels.size} distinct free-text diagnosis labels harmonised into ${CATS.length-1} classes (Malay/English mixed).`);
+  const oc=count(F.filter(r=>r.outcome),r=>r.outcome);
+  if(oc.size) notes.push('Outcomes recorded: '+[...oc.entries()].map(([k,v])=>`${esc(k)} (${v})`).join(', ')+'.');
+  const off=F.filter(r=>r.notif && r.notif.getFullYear()!==r.yr);
+  if(off.length) notes.push(`${off.length} record(s) have a notification date outside their register year (e.g. late-December notifications in the next year's register): ${[...new Set(off.map(r=>fmtD(r.notif)+' → '+r.yr))].slice(0,8).join(', ')}${off.length>8?'…':''}.`);
+  const dupT=FILES.reduce((a,f)=>a+(f.dups||0),0);
+  if(dupT) notes.push(`${dupT} duplicate record(s) across files (same name, date of birth and notification date) were counted once.`);
+  for(const f of FILES){
+    const fnd=Object.entries(f.info.found).map(([k,h])=>`${COLLABEL[k]} ← “${esc(h)}”`).join('; ');
+    notes.push(`<b>${esc(f.name)}</b> — sheet “${esc(f.info.sheet)}”, header row ${f.info.headerRow}, year ${f.year} (from ${f.yearFrom}). Columns detected: ${fnd}.`+(f.info.missing.length?` <b style="color:var(--crit-ink)">Not found:</b> ${f.info.missing.map(k=>COLLABEL[k]).join(', ')}.`:''));
+  }
+  $('#dqNotes').innerHTML=notes.map(t=>`<p class="desc" style="margin:0 0 6px">• ${t}</p>`).join('');
+}
+
+/* ---------- line list ---------- */
+let sortKey='notif', sortDir=1;
+const COLS=[['yr','Year'],['notif','Notified'],['nama','Name'],['age','Age'],['sex','Sex'],['cit','Citizenship'],['mukim','Mukim'],['lok','Lokaliti'],['addr','Address'],['cat','Classification'],['dx','Diagnosis (as recorded)'],['outcome','Outcome']];
+function renderList(){
+  const q=$('#q').value.trim().toUpperCase(); const showN=$('#showNames').checked;
+  let rows=F.filter(r=>!q||[r.lok,r.mukim,r.addr,r.dx,r.country,r.status,showN?r.nama:''].join(' ').toUpperCase().includes(q));
+  rows=[...rows].sort((a,b)=>{let x=a[sortKey],y=b[sortKey]; if(x==null||x==='') return 1; if(y==null||y==='') return -1; return (x>y?1:x<y?-1:0)*sortDir;});
+  $('#tList').innerHTML=`<thead><tr>${COLS.map(([k,l])=>`<th data-k="${k}" class="${k==='age'?'num':''}">${l}${sortKey===k?(sortDir>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r.yr||'—'}</td><td style="white-space:nowrap">${fmtD(r.notif)}</td><td>${esc(showN?r.nama:initials(r.nama))}</td><td class="num">${r.age??'—'}</td><td>${r.sex}</td><td>${r.cit}${r.country?` <span style="color:var(--muted)">(${esc(r.country)})</span>`:''}</td><td>${esc(r.mukim||'—')}</td><td>${esc(r.lok||'—')}</td><td>${esc(r.addr||'—')}</td><td><span class="pill ${CATPILL[r.cat]}">${CATS[r.cat]}</span></td><td>${esc(r.dx||'—')}</td><td>${esc(r.outcome||'—')}</td></tr>`).join('')+'</tbody>';
+  $('#tList').querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(sortKey===k) sortDir*=-1; else {sortKey=k;sortDir=1;} renderList();});
+}
+$('#btnCsv').onclick=()=>{
+  const hdr=['register_year','notification_date','age','age_group','sex','citizenship','status','country','mukim','lokaliti','latitude','longitude','classification','diagnosis','outcome'];
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const lines=[hdr.join(',')].concat(F.map(r=>[r.yr,iso(r.notif),r.age,AGEGRP[ageGroup(r.age)]??'',r.sex,r.cit,r.status,r.country,r.mukim,r.lok,isNaN(r.lat)?'':r.lat,isNaN(r.lon)?'':r.lon,CATS[r.cat],r.dx,r.outcome].map(q).join(',')));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));
+  a.download=(fileName.replace(/\.[^.]+$/,'')||'tb')+'_deidentified.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+})();
+</script>
+</body>
+</html>
